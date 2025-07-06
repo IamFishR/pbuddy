@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PBuddY Chat</title>
-    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.tailwindcss.com"></script> <!-- Tailwind CSS CDN -->
+    <link rel="stylesheet" href="style.css"> <!-- Keep for now, might remove/reduce later -->
     <style>
-        /* Basic styling for tool information */
-        .tool-info {
+        /* Basic styling for tool information - can be replaced by Tailwind */
+        /* .tool-info {
             background-color: #f0f0f0;
             border: 1px solid #ddd;
             padding: 8px;
@@ -37,36 +38,72 @@
         }
          #chat-token-count {
             font-weight: bold;
+        } */
+
+        /* Custom scrollbar for webkit browsers (optional, for better dark mode aesthetics) */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #2d3748; /* dark-700 */
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4a5568; /* dark-600 */
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #718096; /* dark-500 */
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <header>
-            <h1>PBuddY Chat Agent</h1>
+<body class="bg-gray-900 text-gray-100 font-sans"> <!-- Basic dark theme body -->
+    <div class="container mx-auto p-4"> <!-- Basic container -->
+        <header class="mb-4">
+            <h1 class="text-3xl font-bold text-center text-blue-400">PBuddY Chat Agent</h1>
         </header>
-        <div class="chat-main">
-            <aside class="sidebar">
-                <h2>Chats</h2>
-                <button id="new-chat-btn">New Chat (+)</button>
-                <ul id="chat-list">
-                    <!-- Chat items will be populated here -->
-                    <!-- Example: <li>Chat 1</li> -->
+        <div class="chat-main flex h-[calc(100vh-150px)]"> <!-- Flex container for sidebar and chat, adjusted height -->
+            <aside class="sidebar w-1/4 bg-gray-800 p-4 rounded-lg mr-4 overflow-y-auto">
+                <h2 class="text-xl font-semibold mb-3 text-gray-200">Chats</h2>
+                <button id="new-chat-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg mb-3 transition duration-150">New Chat (+)</button>
+                <ul id="chat-list" class="space-y-2">
+                    <!-- Chat items will be populated here. Example:
+                    <li class="p-2 hover:bg-gray-700 rounded-md cursor-pointer text-gray-300">Chat 1 - Hello there...</li>
+                    <li class="p-2 bg-gray-700 rounded-md cursor-pointer text-white font-semibold">Chat 2 - What is the...</li>
+                    -->
                 </ul>
             </aside>
-            <section class="chat-interface">
-                <div class="chat-interface-header">
-                    <h2>Conversation</h2>
-                    <div id="chat-token-count-label">Total Tokens: <span id="chat-token-count">0</span></div>
+            <section class="chat-interface flex flex-col flex-1 bg-gray-800 rounded-lg">
+                <div class="chat-interface-header flex justify-between items-center p-3 border-b border-gray-700">
+                    <h2 class="text-lg font-semibold text-gray-200">Conversation</h2>
+                    <div id="chat-token-count-label" class="text-sm text-gray-400">
+                        Total Tokens: <span id="chat-token-count" class="font-bold text-gray-300">0</span>
+                    </div>
                 </div>
-                <div id="chat-window">
-                    <!-- Messages will appear here -->
-                    <!-- <div class="message user-message"><p>Hello!</p></div> -->
-                    <!-- <div class="message bot-message"><p>Hi there! How can I help you?</p></div> -->
+                <div id="chat-window" class="flex-1 p-4 space-y-4 overflow-y-auto">
+                    <!-- Messages will appear here. JS will add classes for user/bot messages -->
+                    <!-- Example User Message:
+                    <div class="message user-message flex justify-end">
+                        <div class="bg-blue-600 text-white p-3 rounded-lg max-w-xs lg:max-w-md">
+                            <p>Hello!</p>
+                        </div>
+                    </div>
+                    -->
+                    <!-- Example Bot Message:
+                    <div class="message bot-message flex justify-start">
+                        <div class="bg-gray-700 text-gray-200 p-3 rounded-lg max-w-xs lg:max-w-md">
+                            <p>Hi there! How can I help you?</p>
+                            <div class="tool-info bg-gray-600 border border-gray-500 p-2 mt-2 rounded text-xs">
+                                <pre>Tool Used: get_current_time...</pre>
+                            </div>
+                        </div>
+                    </div>
+                    -->
                 </div>
-                <div id="chat-input-area">
-                    <textarea id="message-input" placeholder="Type your message..." rows="3"></textarea>
-                    <button id="send-button">Send</button>
+                <div id="chat-input-area" class="p-3 border-t border-gray-700">
+                    <div class="flex items-center bg-gray-700 rounded-lg p-2">
+                        <textarea id="message-input" placeholder="Type your message..." rows="1" class="flex-1 bg-transparent text-gray-100 p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 resize-none"></textarea>
+                        <button id="send-button" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg ml-2 transition duration-150">Send</button>
+                    </div>
                 </div>
             </section>
         </div>
