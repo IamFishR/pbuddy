@@ -13,16 +13,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Display Functions ---
     function displayMessage(text, sender, toolInfo = null) {
-        const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message', sender === 'user' ? 'user-message' : 'bot-message');
+        const messageWrapper = document.createElement('div'); // Outer div for alignment
+        messageWrapper.classList.add('message', 'flex');
+
+        const messageBubble = document.createElement('div');
+        // Base classes for all bubbles: p-3 rounded-lg max-w-xs lg:max-w-md xl:max-w-lg
+        messageBubble.classList.add('p-3', 'rounded-lg', 'max-w-xs', 'lg:max-w-md', 'xl:max-w-lg', 'break-words');
+
+        if (sender === 'user') {
+            messageWrapper.classList.add('justify-end');
+            // User message specific classes: bg-blue-600 text-white
+            messageBubble.classList.add('bg-blue-600', 'text-white');
+        } else { // Bot or system message
+            messageWrapper.classList.add('justify-start');
+            // Bot message specific classes: bg-gray-700 text-gray-200
+            messageBubble.classList.add('bg-gray-700', 'text-gray-200');
+        }
 
         const p = document.createElement('p');
         p.textContent = text;
-        messageDiv.appendChild(p);
+        messageBubble.appendChild(p);
 
         if (sender === 'bot' && toolInfo && toolInfo.toolName) {
             const toolInfoDiv = document.createElement('div');
-            toolInfoDiv.classList.add('tool-info');
+            // Tailwind classes for tool info box: bg-gray-600 border border-gray-500 p-2 mt-2 rounded text-xs text-gray-200 (changed from text-gray-300)
+            toolInfoDiv.classList.add('bg-gray-600', 'border', 'border-gray-500', 'p-2', 'mt-2', 'rounded', 'text-xs', 'text-gray-200');
 
             let toolDetails = `Tool Used: ${toolInfo.toolName}`;
             if (toolInfo.arguments && Object.keys(toolInfo.arguments).length > 0) {
@@ -35,12 +50,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const pre = document.createElement('pre');
+            pre.classList.add('whitespace-pre-wrap', 'break-all'); // Tailwind for pre formatting
             pre.textContent = toolDetails;
             toolInfoDiv.appendChild(pre);
-            messageDiv.appendChild(toolInfoDiv);
+            messageBubble.appendChild(toolInfoDiv); // Append tool info inside the message bubble
         }
 
-        chatWindow.appendChild(messageDiv);
+        messageWrapper.appendChild(messageBubble);
+        chatWindow.appendChild(messageWrapper);
         chatWindow.scrollTop = chatWindow.scrollHeight; // Auto-scroll to bottom
     }
 
@@ -79,78 +96,63 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadChats() {
         console.log('Loading chats...');
         try {
-            const chats = await fetchAPI('/chats');
+            const chats = await fetchAPI('/chats'); // Assuming this returns an array of chat objects
             chatListUl.innerHTML = ''; // Clear existing list
             if (chats && chats.length > 0) {
                 chats.forEach(chat => {
                     const li = document.createElement('li');
-                    // Display chat ID and maybe part of the last message or date
+                    // Tailwind classes for chat list items
+                    li.classList.add('p-2', 'hover:bg-gray-700', 'rounded-md', 'cursor-pointer', 'text-gray-300', 'truncate');
+
                     const lastMsg = chat.messages && chat.messages.length > 0 ? chat.messages[0].content : 'New chat';
-                    const preview = lastMsg.substring(0, 20) + (lastMsg.length > 20 ? '...' : '');
+                    const preview = lastMsg.substring(0, 25) + (lastMsg.length > 25 ? '...' : ''); // Slightly longer preview
                     li.textContent = `Chat ${chat.id} - ${preview}`;
                     li.dataset.chatId = chat.id;
+
+                    if (String(chat.id) === String(currentChatId)) { // Check if it's the currently active chat
+                        li.classList.add('bg-gray-700', 'text-white', 'font-semibold'); // Active chat styling
+                    }
+
                     li.addEventListener('click', () => selectChat(chat.id));
                     chatListUl.appendChild(li);
                 });
-                // Automatically select the most recent chat if none is selected
-                if (!currentChatId && chats.length > 0) {
-                     // selectChat(chats[0].id); // Select the first (most recent) chat
-                }
             } else {
-                chatListUl.innerHTML = '<li>No chats yet. Start a new one!</li>';
+                const li = document.createElement('li');
+                li.classList.add('p-2', 'text-gray-500');
+                li.textContent = 'No chats yet. Start a new one!';
+                chatListUl.appendChild(li);
             }
         } catch (error) {
-            chatListUl.innerHTML = '<li>Error loading chats.</li>';
+            const li = document.createElement('li');
+            li.classList.add('p-2', 'text-red-400');
+            li.textContent = 'Error loading chats.';
+            chatListUl.appendChild(li);
             console.error('Error loading chats:', error);
         }
     }
 
     async function selectChat(chatId) {
-        if (currentChatId === chatId) return; // Already selected
+        if (String(currentChatId) === String(chatId)) return;
 
         currentChatId = chatId;
         console.log(`Selecting chat ID: ${currentChatId}`);
-        updateChatTokenDisplay(0); // Reset token count display when switching chats
+        updateChatTokenDisplay(0);
+        await loadChats(); // Reload chat list to update active state styling
 
-        // Highlight active chat in the list
-        document.querySelectorAll('#chat-list li').forEach(li => {
-            if (li.dataset.chatId === String(chatId)) {
-                li.classList.add('active-chat');
-            } else {
-                li.classList.remove('active-chat');
-            }
-        });
-
-        chatWindow.innerHTML = ''; // Clear current messages
+        chatWindow.innerHTML = '';
         localChatHistory = [];
 
         try {
-            // Fetch chat details which include messages and total token count
-            const chatDetails = await fetchAPI(`/chats/${currentChatId}`); // Assuming this endpoint returns the full chat object
-            chatWindow.innerHTML = ''; // Clear current messages
-            localChatHistory = [];
-
+            const chatDetails = await fetchAPI(`/chats/${currentChatId}`);
             if (chatDetails && chatDetails.messages) {
                 chatDetails.messages.forEach(msg => {
-                    // For historical messages, we don't have toolExecutionInfo per message from this endpoint
-                    // So, toolInfo will be null for these.
-                    displayMessage(msg.content, msg.sender, null);
+                    displayMessage(msg.content, msg.sender, null); // toolInfo is null for historical messages
                     localChatHistory.push({ role: msg.sender === 'bot' ? 'assistant' : 'user', content: msg.content });
                 });
             }
             if (chatDetails && chatDetails.tokenCount !== undefined) {
                 updateChatTokenDisplay(chatDetails.tokenCount);
-            } else {
-                 // Fallback if /chats/:id doesn't return messages or tokenCount directly in this format
-                 // This part might need adjustment based on the actual response of GET /chats/:id
-                const messages = await fetchAPI(`/chats/${currentChatId}/messages`);
-                 messages.forEach(msg => {
-                    displayMessage(msg.content, msg.sender);
-                    localChatHistory.push({ role: msg.sender === 'bot' ? 'assistant' : 'user', content: msg.content });
-                });
-                // We might need a separate call to get total token count or it comes with chat list
             }
-
         } catch (error) {
             console.error(`Error fetching messages for chat ${currentChatId}:`, error);
             displayMessage(`Error loading messages for chat ${currentChatId}.`, 'bot');
@@ -158,6 +160,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Chat Action Functions ---
+    // Add auto-resize for textarea
+    const autoResizeTextarea = (textarea) => {
+        textarea.style.height = 'auto'; // Reset height
+        textarea.style.height = textarea.scrollHeight + 'px'; // Set to scroll height
+    };
+
+    messageInput.addEventListener('input', () => autoResizeTextarea(messageInput));
     async function handleNewChat() {
         console.log('Creating new chat...');
         try {
@@ -167,16 +176,8 @@ document.addEventListener('DOMContentLoaded', () => {
             localChatHistory = [];
             updateChatTokenDisplay(newChatData.tokenCount || 0); // New chats have 0 tokens initially
             console.log('New chat created with ID:', currentChatId);
-            await loadChats(); // Refresh chat list
-            // Automatically select the new chat in the list
-            document.querySelectorAll('#chat-list li').forEach(li => {
-                 if (li.dataset.chatId === String(currentChatId)) {
-                    li.classList.add('active-chat');
-                } else {
-                    li.classList.remove('active-chat');
-                }
-            });
-
+            await loadChats(); // Refresh chat list to show new chat and make it active
+            // selectChat(currentChatId); // This will be handled by loadChats highlighting logic if currentChatId matches
         } catch (error) {
             console.error('Error creating new chat:', error);
         }
