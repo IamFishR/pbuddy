@@ -30,9 +30,13 @@ document.addEventListener('DOMContentLoaded', () => {
             messageBubble.classList.add('bg-gray-700', 'text-gray-200');
         }
 
-        const p = document.createElement('p');
-        p.textContent = text;
-        messageBubble.appendChild(p);
+        const messageContentDiv = document.createElement('div');
+        messageContentDiv.classList.add('message-bubble-content'); // Add class for styling hook
+        // Use marked.parse to convert markdown text to HTML.
+        // Configure marked to sanitize HTML to prevent XSS.
+        // Also, enable gfm (GitHub Flavored Markdown) and breaks for better compatibility.
+        messageContentDiv.innerHTML = marked.parse(text, { sanitize: true, gfm: true, breaks: true });
+        messageBubble.appendChild(messageContentDiv);
 
         if (sender === 'bot' && toolInfo && toolInfo.toolName) {
             const toolInfoDiv = document.createElement('div');
