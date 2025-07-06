@@ -5,20 +5,24 @@ const messageController = {
   handlePostMessageToChat: async (req, res, next) => {
     try {
       const { chatId } = req.params;
-      const { userId, content, model } = req.body;
+      // Expect `message` for current prompt and `history` array from client
+      const { message: userMessageContent, history: clientHistory, model } = req.body;
 
-      if (!userId || !content) {
-        return res.status(400).json({ message: "userId and content are required to post a message." });
+      if (!userMessageContent) { // History can be empty for the first message
+        return res.status(400).json({ message: "Field 'message' (current prompt) is required." });
+      }
+      if (!Array.isArray(clientHistory || [])) { // Ensure history is an array if provided, or default to empty
+          return res.status(400).json({ message: "Field 'history' must be an array if provided." });
       }
 
       const numericChatId = parseInt(chatId, 10);
-      const numericUserId = parseInt(userId, 10);
-
-      if (isNaN(numericChatId) || isNaN(numericUserId)) {
-        return res.status(400).json({ message: "Valid numeric chatId and userId are required." });
+      if (isNaN(numericChatId)) {
+        return res.status(400).json({ message: "Valid numeric chatId is required in path." });
       }
 
-      const result = await chatService.handleNewMessage(numericChatId, numericUserId, content, model);
+      // userId is no longer passed from client; default user is handled in service.
+      // The service's handleNewMessage now expects (chatId, userMessageContent, clientHistory, model)
+      const result = await chatService.handleNewMessage(numericChatId, userMessageContent, clientHistory || [], model);
       res.status(201).json(result);
     } catch (error) {
       console.error("Controller (Message - PostToChat):", error.message);

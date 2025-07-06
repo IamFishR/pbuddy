@@ -11,10 +11,10 @@ const ollamaService = {
    * Generates a response from Ollama based on the current prompt and chat history.
    * @param {string} currentPrompt - The latest message from the user.
    * @param {Array<{role: 'user' | 'assistant', content: string}>} history - Array of previous messages.
-   * @param {string} model - The Ollama model to use (e.g., 'llama2').
+   * @param {string} model - The Ollama model to use.
    * @returns {Promise<{response: string, promptTokens: number, responseTokens: number}>}
    */
-  generateResponse: async (currentPrompt, history = [], model = 'llama2') => {
+  generateResponse: async (currentPrompt, history = [], model = 'gemma:2b') => { // Default model changed
     console.log(`Ollama Service: Generating response for prompt: "${currentPrompt}" with model ${model}`);
 
     const messages = [

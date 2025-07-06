@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PBuddY Chat</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>PBuddY Chat Agent</h1>
+        </header>
+        <div class="chat-main">
+            <aside class="sidebar">
+                <h2>Chats</h2>
+                <button id="new-chat-btn">New Chat (+)</button>
+                <ul id="chat-list">
+                    <!-- Chat items will be populated here -->
+                    <!-- Example: <li>Chat 1</li> -->
+                </ul>
+            </aside>
+            <section class="chat-interface">
+                <div id="chat-window">
+                    <!-- Messages will appear here -->
+                    <!-- <div class="message user-message"><p>Hello!</p></div> -->
+                    <!-- <div class="message bot-message"><p>Hi there! How can I help you?</p></div> -->
+                </div>
+                <div id="chat-input-area">
+                    <textarea id="message-input" placeholder="Type your message..." rows="3"></textarea>
+                    <button id="send-button">Send</button>
+                </div>
+            </section>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

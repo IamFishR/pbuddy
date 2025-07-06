@@ -2,16 +2,13 @@ const { Chat, User, Message } = require('../models');
 const { Op } = require('sequelize');
 const ollamaService = require('./ollama.service');
 const messageService = require('./message.service');
+const userService = require('./user.service'); // Import userService for default user
 
 const chatService = {
-  createChat: async (userId) => {
+  createChat: async () => { // No longer takes userId
     try {
-      // Verify user exists
-      const user = await User.findByPk(userId);
-      if (!user) {
-        throw new Error(`User with ID ${userId} not found.`);
-      }
-      const newChat = await Chat.create({ userId, tokenCount: 0 });
+      const defaultUser = await userService.getOrCreateDefaultUser();
+      const newChat = await Chat.create({ userId: defaultUser.id, tokenCount: 0 });
       return newChat;
     } catch (error) {
       console.error("Error in chatService.createChat:", error);
@@ -43,37 +40,56 @@ const chatService = {
     }
   },
 
-  handleNewMessage: async (chatId, userId, userMessageContent, ollamaModel = 'llama2') => {
+  // Renamed from getChatsByUserId
+  getChatsForDefaultUser: async () => {
     try {
-      // 0. Verify chat exists and belongs to user (optional, depends on how chatId is obtained)
-      const chat = await Chat.findOne({ where: { id: chatId, userId: userId } });
+        const defaultUser = await userService.getOrCreateDefaultUser();
+        const chats = await Chat.findAll({
+            where: { userId: defaultUser.id },
+            include: [
+                {
+                    model: Message,
+                    as: 'messages',
+                    attributes: ['id', 'sender', 'content', 'tokenCount', 'timestamp'],
+                    limit: 1,
+                    order: [['timestamp', 'DESC']]
+                }
+            ],
+            order: [['updatedAt', 'DESC']]
+        });
+        return chats;
+    } catch (error) {
+        console.error("Error in chatService.getChatsForDefaultUser:", error);
+        throw error;
+    }
+  },
+
+  handleNewMessage: async (chatId, userMessageContent, clientHistory, ollamaModel = 'llama2') => {
+    try {
+      const defaultUser = await userService.getOrCreateDefaultUser(); // Still useful to ensure chat belongs to default user
+      // 0. Verify chat exists and belongs to the default user
+      const chat = await Chat.findOne({ where: { id: chatId, userId: defaultUser.id } });
       if (!chat) {
-        throw new Error(`Chat with ID ${chatId} not found for user ${userId}.`);
+        throw new Error(`Chat with ID ${chatId} not found for default user.`);
       }
 
-      // 1. Estimate or get token count for user's message (crude estimation for now)
-      // A more accurate token counter (like tiktoken for OpenAI models) would be better.
-      // For Ollama, the actual token count is returned in the response, so we save user message with estimated, then update.
-      // Or, we can send user message to ollama, get prompt_tokens, then save.
-      // Let's assume a simple character count for now or use 0 and update later.
-      // For simplicity, we'll use the prompt_eval_count from Ollama for the user message.
+      // userMessageContent is the current prompt.
+      // clientHistory is the array of {role, content} from the client.
 
-      // 2. Get formatted chat history for Ollama
-      const history = await messageService.getFormattedChatHistoryForOllama(chatId);
+      // Call Ollama service
+      const ollamaResponse = await ollamaService.generateResponse(userMessageContent, clientHistory, ollamaModel);
 
-      // 3. Call Ollama service
-      // The userMessageContent is the "currentPrompt"
-      const ollamaResponse = await ollamaService.generateResponse(userMessageContent, history, ollamaModel);
-
-      // 4. Save user's message with token count from Ollama's prompt_eval_count
+      // Save user's message.
+      // For promptTokens, ollamaResponse.promptTokens includes tokens for (clientHistory + userMessageContent).
+      // This is appropriate for the user's "turn" in the context of this specific API call.
       const userMessage = await messageService.createMessage(
         chatId,
         'user',
         userMessageContent,
-        ollamaResponse.promptTokens // Tokens for the user's message and history combined
+        ollamaResponse.promptTokens
       );
 
-      // 5. Save bot's response message with token count from Ollama's eval_count
+      // Save bot's response message
       const botMessage = await messageService.createMessage(
         chatId,
         'bot',
