@@ -62,11 +62,22 @@ app.use((err, req, res, next) => {
   res.status(statusCode).json(responseError);
 });
 
-// Sync database and start server
-db.syncDb().then(() => {
-  app.listen(port, () => {
-    console.log(`Server is listening on port ${port}`);
+// Start server (database sync is now handled by migrations)
+// We might want to add a check to ensure DB connection is alive before starting
+// For now, let's directly start the server.
+// A more robust approach would be to test the DB connection using db.sequelize.authenticate()
+
+db.sequelize.authenticate()
+  .then(() => {
+    console.log('Database connection has been established successfully.');
+    app.listen(port, () => {
+      console.log(`Server is listening on port ${port}`);
+      console.log(`Remember to run 'npm run db:migrate' if you haven't already.`);
+    });
+  })
+  .catch(err => {
+    console.error('Unable to connect to the database:', err);
+    console.error('Please ensure your database server is running and configuration is correct.');
+    console.error("If this is the first time, you might need to run 'npm run db:migrate'");
+    process.exit(1); // Exit if DB connection fails
   });
-}).catch(err => {
-    console.error('Failed to start the server:', err);
-});

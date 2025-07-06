@@ -61,7 +61,8 @@ db.Message.belongsTo(db.Chat, {
   as: 'chat'
 });
 
-// Function to sync database
+// Function to sync database - This will now be handled by migrations
+/*
 db.syncDb = async () => {
   try {
     // await sequelize.sync({ force: true }); // Drops and recreates tables - use for development
@@ -72,5 +73,6 @@ db.syncDb = async () => {
     process.exit(1); // Exit if DB sync fails
   }
 };
+*/
 
 module.exports = db;
