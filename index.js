@@ -6,29 +6,47 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 const db = require('./models'); // Import models
-const userRoutes = require('./routes/user.routes');
+// const userRoutes = require('./routes/user.routes'); // User routes removed
 const chatRoutes = require('./routes/chat.routes');
-const messageRoutes = require('./routes/message.routes'); // Though messages might be fully nested
+// const messageRoutes = require('./routes/message.routes'); // message.routes.js deleted
+const path = require('path'); // For serving static files
 
 app.use(express.json()); // Middleware to parse JSON bodies
 
-// API Info Route
-app.get('/', (req, res) => {
+// Serve static files from the 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
+
+// API Info Route - This might be overshadowed by index.html for GET /
+// Let's adjust this or ensure it doesn't conflict.
+// For a typical setup where / serves index.html, an API info route might be /api/info or similar.
+// Or, we can remove this if the frontend is the primary interface for /.
+// For now, let's assume / serves index.html due to express.static.
+// The app.get('/', ...) below will be hit if no index.html is in public, or if it's placed after static middleware for specific cases.
+// To ensure index.html is served for '/', it should be present in 'public'.
+
+// If you want a specific API endpoint for API info, it should be different e.g. /api
+app.get('/api', (req, res) => {
   res.json({
     message: 'Chatbot API is running!',
     _links: {
-      users: '/api/users',
+      // users: '/api/users', // Users are now internal
       chats: '/api/chats',
-      // messages: '/api/messages' // Example, might be removed if fully nested
     }
   });
 });
 
-// Mount Routers
-app.use('/api/users', userRoutes);
-app.use('/api/chats', chatRoutes);
-app.use('/api/messages', messageRoutes); // Example, might be removed if fully nested
 
+// Mount Routers
+// app.use('/api/users', userRoutes); // User routes removed
+app.use('/api/chats', chatRoutes);
+// app.use('/api/messages', messageRoutes); // Reviewing if messageRoutes file is still needed or if all under /api/chats
+// For now, assuming message routes are primarily under /api/chats/:chatId/messages as per chat.routes.js
+// If message.routes.js is exclusively for non-nested routes and we don't have any, it can be removed.
+// Let's remove the direct mounting of /api/messages if it's empty or redundant.
+// For now, I'll comment it out. If chat.routes.js handles all message interactions, this isn't needed.
+// const messageRoutes = require('./routes/message.routes'); // Already imported, let's check its usage.
+// If message.routes.js is empty or its routes are fully covered by chat.routes.js, we can remove it.
+// For now, let's assume it's not needed directly at /api/messages.
 
 // Basic error handling middleware
 app.use((err, req, res, next) => {

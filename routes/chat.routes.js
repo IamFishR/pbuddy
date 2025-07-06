@@ -1,16 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const chatController = require('../controllers/chat.controller');
-const messageController = require('../controllers/message.controller'); // For message-specific routes under a chat
+const messageController = require('../controllers/message.controller');
 
-// POST /api/chats - Create a new chat
+// POST /api/chats - Create a new chat (for the default user)
 router.post('/', chatController.handleCreateChat);
 
-// GET /api/chats/:chatId - Get a specific chat by its ID, including its messages
+// GET /api/chats - Get all chats for the default user
+router.get('/', chatController.handleGetChatsForDefaultUser);
+
+// GET /api/chats/:chatId - Get a specific chat by its ID
 router.get('/:chatId', chatController.handleGetChatById);
 
-// GET /api/chats/user/:userId - Get all chats for a specific user
-router.get('/user/:userId', chatController.handleGetChatsByUserId);
+// Note: The route GET /api/chats/user/:userId was removed and replaced by GET /api/chats
 
 
 // Routes for messages within a specific chat
