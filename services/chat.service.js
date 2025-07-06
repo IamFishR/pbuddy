@@ -64,7 +64,7 @@ const chatService = {
     }
   },
 
-  handleNewMessage: async (chatId, userMessageContent, clientHistory, ollamaModel = 'llama2') => {
+  handleNewMessage: async (chatId, userMessageContent, clientHistory, ollamaModel = 'gemma3n:e2b') => {
     try {
       const defaultUser = await userService.getOrCreateDefaultUser(); // Still useful to ensure chat belongs to default user
       // 0. Verify chat exists and belongs to the default user
