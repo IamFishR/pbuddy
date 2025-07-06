@@ -76,35 +76,94 @@ const chatService = {
       // userMessageContent is the current prompt.
       // clientHistory is the array of {role, content} from the client.
 
-      // Call Ollama service
-      const ollamaResponse = await ollamaService.generateResponse(userMessageContent, clientHistory, ollamaModel);
+      // --- Tool Integration Logic ---
+      let finalBotContent = '';
+      let finalBotTokenCount = 0;
+      let initialUserPromptTokens = 0; // Will store tokens from the first call if a tool is used
 
-      // Save user's message.
-      // For promptTokens, ollamaResponse.promptTokens includes tokens for (clientHistory + userMessageContent).
-      // This is appropriate for the user's "turn" in the context of this specific API call.
+      // First call to Ollama
+      let ollamaResponse = await ollamaService.generateResponse(userMessageContent, clientHistory, ollamaModel);
+      initialUserPromptTokens = ollamaResponse.promptTokens; // Capture prompt tokens for the original user message
+
+      try {
+        const potentialToolCall = JSON.parse(ollamaResponse.response);
+
+        if (potentialToolCall && potentialToolCall.tool_name) {
+          console.log(`ChatService: Tool call detected: ${potentialToolCall.tool_name}`);
+          const toolService = require('./tool.service'); // Require tool service
+          const toolResult = await toolService.executeTool(potentialToolCall.tool_name, potentialToolCall.arguments);
+
+          let toolResponseForLLM;
+          if (toolResult.success) {
+            toolResponseForLLM = `Tool "${potentialToolCall.tool_name}" executed successfully. Output: ${toolResult.output}`;
+          } else {
+            toolResponseForLLM = `Tool "${potentialToolCall.tool_name}" failed. Error: ${toolResult.error}`;
+          }
+
+          // Prepare for a second LLM call
+          // The prompt to the LLM should guide it to use the tool's output to answer the user's original query.
+          const followUpPrompt = `The user's original query was: "${userMessageContent}".
+You decided to use the tool "${potentialToolCall.tool_name}".
+The result of this tool call is: "${toolResult.output}".
+Based on this information, please provide a natural language response to the user.`;
+
+          // Construct history for the second call:
+          // Original User Query -> LLM Tool Request -> Tool Execution Result -> LLM Final Answer
+          const historyForSecondCall = [
+            ...clientHistory,
+            { role: 'user', content: userMessageContent },
+            { role: 'assistant', content: ollamaResponse.response }, // LLM's first response (the tool call JSON)
+            // We represent the tool execution result as if it's a user message providing context,
+            // or some systems might use a dedicated 'tool' role.
+            // For Ollama, 'user' or 'system' message providing context is common.
+            { role: 'user', content: `Context from tool execution: ${toolResult.output}` }
+          ];
+
+          console.log("ChatService: Making second LLM call with tool results.");
+          ollamaResponse = await ollamaService.generateResponse(followUpPrompt, historyForSecondCall, ollamaModel);
+          // Note: The promptTokens for this second call are for the followUpPrompt + historyForSecondCall.
+          // The responseTokens are for the final human-readable answer.
+          finalBotContent = ollamaResponse.response;
+          finalBotTokenCount = ollamaResponse.responseTokens;
+
+        } else {
+          // Not a tool call (or JSON parse failed, but was not a valid tool obj), use the response directly
+          finalBotContent = ollamaResponse.response;
+          finalBotTokenCount = ollamaResponse.responseTokens;
+        }
+      } catch (e) {
+        // Response was not JSON or not a valid tool call structure, use it as is
+        console.log("ChatService: No valid tool call detected in LLM response.", e.message);
+        finalBotContent = ollamaResponse.response;
+        finalBotTokenCount = ollamaResponse.responseTokens;
+      }
+      // --- End of Tool Integration Logic ---
+
+      // Save user's message using tokens from the first call
       const userMessage = await messageService.createMessage(
         chatId,
         'user',
         userMessageContent,
-        ollamaResponse.promptTokens
+        initialUserPromptTokens // User message prompt tokens
       );
 
-      // Save bot's response message
+      // Save bot's final response message
       const botMessage = await messageService.createMessage(
         chatId,
         'bot',
-        ollamaResponse.response,
-        ollamaResponse.responseTokens // Tokens for the bot's reply
+        finalBotContent,
+        finalBotTokenCount // Bot message response tokens
       );
 
-      // 6. Update total chat token count
+      // Update total chat token count
+      // This will sum userMessage.tokenCount + botMessage.tokenCount + any prior messages
       const updatedChatTokens = await messageService.updateChatTokenCount(chatId);
 
       return {
         userMessage,
         botMessage,
         updatedTokenCount: updatedChatTokens.totalTokens,
-        ollamaFullResponse: ollamaResponse // For debugging or more detailed info if needed
+        // ollamaFullResponse might be less relevant now or need to represent the multi-step process
       };
 
     } catch (error) {

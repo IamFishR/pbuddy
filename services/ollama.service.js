@@ -17,7 +17,19 @@ const ollamaService = {
   generateResponse: async (currentPrompt, history = [], model = 'gemma:2b') => { // Default model changed
     console.log(`Ollama Service: Generating response for prompt: "${currentPrompt}" with model ${model}`);
 
+    const systemPromptForTools = `You have access to the following tools:
+- get_current_time: Useful for finding the current time. To use this tool, you MUST output ONLY a JSON object in the following format, and nothing else:
+  {"tool_name": "get_current_time", "arguments": {}}
+
+If the user asks "What time is it?", "current time", or similar, you should respond with the JSON for the get_current_time tool.
+Example:
+User: What is the current time?
+Assistant: {"tool_name": "get_current_time", "arguments": {}}
+
+If you do not need to use a tool, respond normally.`;
+
     const messages = [
+      { role: 'system', content: systemPromptForTools }, // Added system prompt
       ...history,
       { role: 'user', content: currentPrompt }
     ];
