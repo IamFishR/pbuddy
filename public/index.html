@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PBuddY Chat</title>
     <script src="https://cdn.tailwindcss.com"></script> <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> <!-- marked.js CDN -->
     <link rel="stylesheet" href="style.css"> <!-- Keep for now, might remove/reduce later -->
     <style>
         /* Basic styling for tool information - can be replaced by Tailwind */
@@ -53,6 +54,81 @@
         }
         ::-webkit-scrollbar-thumb:hover {
             background: #718096; /* dark-500 */
+        }
+
+        /* Styles for rendered Markdown content within message bubbles */
+        .message-bubble-content h1, .message-bubble-content h2, .message-bubble-content h3, .message-bubble-content h4, .message-bubble-content h5, .message-bubble-content h6 {
+            font-weight: 600; /* semibold */
+            margin-top: 0.75em;
+            margin-bottom: 0.5em;
+        }
+        .message-bubble-content h1 { font-size: 1.5em; }
+        .message-bubble-content h2 { font-size: 1.25em; }
+        .message-bubble-content h3 { font-size: 1.125em; }
+
+        .message-bubble-content p {
+            margin-bottom: 0.75em;
+        }
+        .message-bubble-content p:last-child { /* Remove margin from last p if it's the only/last element */
+            margin-bottom: 0;
+        }
+        .message-bubble-content ul, .message-bubble-content ol {
+            margin-left: 1.25rem; /* ml-5 */
+            margin-bottom: 0.75em;
+        }
+        .message-bubble-content ul { list-style-type: disc; }
+        .message-bubble-content ol { list-style-type: decimal; }
+
+        .message-bubble-content a {
+            color: #60a5fa; /* text-blue-400 */
+            text-decoration: underline;
+        }
+        .message-bubble-content a:hover {
+            color: #93c5fd; /* text-blue-300 */
+        }
+
+        .message-bubble-content code:not(pre > code) { /* Inline code */
+            background-color: #4A5568; /* bg-gray-600 */
+            color: #E2E8F0; /* text-gray-200 */
+            padding: 0.125em 0.3em;
+            border-radius: 0.25rem; /* rounded */
+            font-size: 0.875em; /* text-sm */
+            font-family: monospace;
+        }
+
+        .message-bubble-content pre { /* Code block container */
+            background-color: #1A202C; /* bg-gray-900 (very dark) */
+            color: #CBD5E0; /* text-gray-300 */
+            padding: 0.75rem; /* p-3 */
+            border-radius: 0.375rem; /* rounded-md */
+            overflow-x: auto;
+            margin-bottom: 0.75em;
+            font-family: monospace;
+            font-size: 0.875em; /* text-sm */
+        }
+        .message-bubble-content pre code { /* Code within pre, no extra bg needed if pre has it */
+           /* font-size: inherit; /* Inherit from pre */
+            padding: 0;
+            background-color: transparent; /* No background for code inside pre */
+            color: inherit; /* Inherit color from pre */
+        }
+
+        .message-bubble-content blockquote {
+            border-left: 4px solid #4A5568; /* border-l-4 border-gray-600 */
+            padding-left: 1rem; /* pl-4 */
+            margin-left: 0;
+            margin-right: 0;
+            margin-bottom: 0.75em;
+            color: #A0AEC0; /* text-gray-400 */
+        }
+         .message-bubble-content blockquote p { /* Paragraphs inside blockquote may need margin adjustment */
+            margin-bottom: 0.25em;
+        }
+
+        .message-bubble-content hr {
+            border-top: 1px solid #4A5568; /* border-t border-gray-600 */
+            margin-top: 1rem;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
