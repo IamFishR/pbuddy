@@ -5,6 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PBuddY Chat</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Basic styling for tool information */
+        .tool-info {
+            background-color: #f0f0f0;
+            border: 1px solid #ddd;
+            padding: 8px;
+            margin-top: 5px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .tool-info pre {
+            white-space: pre-wrap; /* Allows text to wrap */
+            word-wrap: break-word; /* Breaks long words */
+            margin: 0;
+            font-family: monospace;
+        }
+        .chat-interface-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: #f7f7f7;
+            border-bottom: 1px solid #ddd;
+        }
+        .chat-interface-header h2 {
+            margin: 0;
+        }
+        .chat-interface-header #chat-token-count-label {
+            font-size: 0.9em;
+        }
+         #chat-token-count {
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -21,6 +55,10 @@
                 </ul>
             </aside>
             <section class="chat-interface">
+                <div class="chat-interface-header">
+                    <h2>Conversation</h2>
+                    <div id="chat-token-count-label">Total Tokens: <span id="chat-token-count">0</span></div>
+                </div>
                 <div id="chat-window">
                     <!-- Messages will appear here -->
                     <!-- <div class="message user-message"><p>Hello!</p></div> -->

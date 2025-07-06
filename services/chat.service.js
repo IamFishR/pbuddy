@@ -79,19 +79,29 @@ const chatService = {
       // --- Tool Integration Logic ---
       let finalBotContent = '';
       let finalBotTokenCount = 0;
-      let initialUserPromptTokens = 0; // Will store tokens from the first call if a tool is used
+      let initialUserPromptTokens = 0;
+      let toolExecutionInfo = null; // Initialize tool execution info
 
       // First call to Ollama
       let ollamaResponse = await ollamaService.generateResponse(userMessageContent, clientHistory, ollamaModel);
-      initialUserPromptTokens = ollamaResponse.promptTokens; // Capture prompt tokens for the original user message
+      initialUserPromptTokens = ollamaResponse.promptTokens;
 
       try {
         const potentialToolCall = JSON.parse(ollamaResponse.response);
 
         if (potentialToolCall && potentialToolCall.tool_name) {
           console.log(`ChatService: Tool call detected: ${potentialToolCall.tool_name}`);
-          const toolService = require('./tool.service'); // Require tool service
+          const toolService = require('./tool.service');
           const toolResult = await toolService.executeTool(potentialToolCall.tool_name, potentialToolCall.arguments);
+
+          // Store tool execution details
+          toolExecutionInfo = {
+            toolName: potentialToolCall.tool_name,
+            arguments: potentialToolCall.arguments,
+            output: toolResult.output,
+            success: toolResult.success,
+            error: toolResult.error // Will be undefined if success is true
+          };
 
           let toolResponseForLLM;
           if (toolResult.success) {
@@ -163,7 +173,7 @@ Based on this information, please provide a natural language response to the use
         userMessage,
         botMessage,
         updatedTokenCount: updatedChatTokens.totalTokens,
-        // ollamaFullResponse might be less relevant now or need to represent the multi-step process
+        toolExecutionInfo: toolExecutionInfo // Add tool execution info to the response
       };
 
     } catch (error) {

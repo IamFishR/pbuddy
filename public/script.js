@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendButton = document.getElementById('send-button');
     const newChatBtn = document.getElementById('new-chat-btn');
     const chatListUl = document.getElementById('chat-list');
+    const chatTokenCountSpan = document.getElementById('chat-token-count'); // Added for token count
 
     let currentChatId = null;
     let localChatHistory = []; // Stores {role, content} for the current API call's history
@@ -11,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = '/api'; // Assuming your API routes are under /api
 
     // --- Display Functions ---
-    function displayMessage(text, sender) {
+    function displayMessage(text, sender, toolInfo = null) {
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('message', sender === 'user' ? 'user-message' : 'bot-message');
 
@@ -19,8 +20,34 @@ document.addEventListener('DOMContentLoaded', () => {
         p.textContent = text;
         messageDiv.appendChild(p);
 
+        if (sender === 'bot' && toolInfo && toolInfo.toolName) {
+            const toolInfoDiv = document.createElement('div');
+            toolInfoDiv.classList.add('tool-info');
+
+            let toolDetails = `Tool Used: ${toolInfo.toolName}`;
+            if (toolInfo.arguments && Object.keys(toolInfo.arguments).length > 0) {
+                toolDetails += `\nArguments: ${JSON.stringify(toolInfo.arguments)}`;
+            }
+            if (toolInfo.success) {
+                toolDetails += `\nOutput: ${toolInfo.output}`;
+            } else {
+                toolDetails += `\nError: ${toolInfo.error || 'Tool execution failed'}`;
+            }
+
+            const pre = document.createElement('pre');
+            pre.textContent = toolDetails;
+            toolInfoDiv.appendChild(pre);
+            messageDiv.appendChild(toolInfoDiv);
+        }
+
         chatWindow.appendChild(messageDiv);
         chatWindow.scrollTop = chatWindow.scrollHeight; // Auto-scroll to bottom
+    }
+
+    function updateChatTokenDisplay(count) {
+        if (chatTokenCountSpan) {
+            chatTokenCountSpan.textContent = count;
+        }
     }
 
     // --- API Helper ---
@@ -83,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         currentChatId = chatId;
         console.log(`Selecting chat ID: ${currentChatId}`);
+        updateChatTokenDisplay(0); // Reset token count display when switching chats
 
         // Highlight active chat in the list
         document.querySelectorAll('#chat-list li').forEach(li => {
@@ -97,11 +125,32 @@ document.addEventListener('DOMContentLoaded', () => {
         localChatHistory = [];
 
         try {
-            const messages = await fetchAPI(`/chats/${currentChatId}/messages`);
-            messages.forEach(msg => {
-                displayMessage(msg.content, msg.sender);
-                localChatHistory.push({ role: msg.sender === 'bot' ? 'assistant' : 'user', content: msg.content });
-            });
+            // Fetch chat details which include messages and total token count
+            const chatDetails = await fetchAPI(`/chats/${currentChatId}`); // Assuming this endpoint returns the full chat object
+            chatWindow.innerHTML = ''; // Clear current messages
+            localChatHistory = [];
+
+            if (chatDetails && chatDetails.messages) {
+                chatDetails.messages.forEach(msg => {
+                    // For historical messages, we don't have toolExecutionInfo per message from this endpoint
+                    // So, toolInfo will be null for these.
+                    displayMessage(msg.content, msg.sender, null);
+                    localChatHistory.push({ role: msg.sender === 'bot' ? 'assistant' : 'user', content: msg.content });
+                });
+            }
+            if (chatDetails && chatDetails.tokenCount !== undefined) {
+                updateChatTokenDisplay(chatDetails.tokenCount);
+            } else {
+                 // Fallback if /chats/:id doesn't return messages or tokenCount directly in this format
+                 // This part might need adjustment based on the actual response of GET /chats/:id
+                const messages = await fetchAPI(`/chats/${currentChatId}/messages`);
+                 messages.forEach(msg => {
+                    displayMessage(msg.content, msg.sender);
+                    localChatHistory.push({ role: msg.sender === 'bot' ? 'assistant' : 'user', content: msg.content });
+                });
+                // We might need a separate call to get total token count or it comes with chat list
+            }
+
         } catch (error) {
             console.error(`Error fetching messages for chat ${currentChatId}:`, error);
             displayMessage(`Error loading messages for chat ${currentChatId}.`, 'bot');
@@ -112,10 +161,11 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleNewChat() {
         console.log('Creating new chat...');
         try {
-            const newChatData = await fetchAPI('/chats', 'POST');
+            const newChatData = await fetchAPI('/chats', 'POST'); // newChatData includes {id, userId, tokenCount, createdAt, updatedAt}
             currentChatId = newChatData.id;
             chatWindow.innerHTML = ''; // Clear messages
             localChatHistory = [];
+            updateChatTokenDisplay(newChatData.tokenCount || 0); // New chats have 0 tokens initially
             console.log('New chat created with ID:', currentChatId);
             await loadChats(); // Refresh chat list
             // Automatically select the new chat in the list
@@ -155,11 +205,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 history: localChatHistory.slice(0, -1) // Send history *before* the current user message
             };
 
-            const botResponse = await fetchAPI(`/chats/${currentChatId}/messages`, 'POST', payload);
+            const responseData = await fetchAPI(`/chats/${currentChatId}/messages`, 'POST', payload);
 
-            if (botResponse && botResponse.botMessage && botResponse.botMessage.content) {
-                displayMessage(botResponse.botMessage.content, 'bot');
-                localChatHistory.push({ role: 'assistant', content: botResponse.botMessage.content });
+            if (responseData && responseData.botMessage && responseData.botMessage.content) {
+                // Pass toolExecutionInfo to displayMessage for the bot's message
+                displayMessage(responseData.botMessage.content, 'bot', responseData.toolExecutionInfo);
+                localChatHistory.push({ role: 'assistant', content: responseData.botMessage.content });
+
+                // Update total chat token count display
+                if (responseData.updatedTokenCount !== undefined) {
+                    updateChatTokenDisplay(responseData.updatedTokenCount);
+                }
             } else {
                  displayMessage('Received an empty or unexpected response from the bot.', 'bot');
             }
