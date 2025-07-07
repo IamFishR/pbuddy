@@ -4,68 +4,123 @@
 module.exports = {
   async up (queryInterface, Sequelize) {
     const transaction = await queryInterface.sequelize.transaction();
+
+    // Helper function to check if a table exists
+    const tableExists = async (tableName) => {
+      try {
+        await queryInterface.describeTable(tableName, { transaction });
+        return true;
+      } catch (e) {
+        return false;
+      }
+    };
+
     try {
-      // Rename existing tables first
-      // Note: Foreign key constraints might need to be dropped and re-added explicitly if renaming causes issues.
-      // Assuming for now that the DB handles renaming gracefully or tables are empty/constraints deferred.
-      await queryInterface.renameTable('Messages', 'ShortTermMemories', { transaction });
-      await queryInterface.renameTable('Chats', 'Conversations', { transaction });
+      const messagesTableExists = await tableExists('Messages');
+      const chatsTableExists = await tableExists('Chats');
+
+      if (messagesTableExists) {
+        console.log("Migration: 'Messages' table exists. Proceeding to rename to 'ShortTermMemories'.");
+        await queryInterface.renameTable('Messages', 'ShortTermMemories', { transaction });
+      } else {
+        console.log("Migration: 'Messages' table does not exist. Skipping rename. 'ShortTermMemories' might be created by an earlier migration or needs to be created if this is a fresh setup with this migration as primary.");
+        // If 'ShortTermMemories' should be created here if 'Messages' didn't exist,
+        // a createTable('ShortTermMemories', ...) would be needed.
+        // This migration is primarily for ALTERING, so this path implies an issue with prior migration state.
+      }
+
+      if (chatsTableExists) {
+        console.log("Migration: 'Chats' table exists. Proceeding to rename to 'Conversations'.");
+        await queryInterface.renameTable('Chats', 'Conversations', { transaction });
+      } else {
+        console.log("Migration: 'Chats' table does not exist. Skipping rename. 'Conversations' might be created by an earlier migration or needs to be created.");
+      }
 
       // Modify Conversations table (formerly Chats)
-      await queryInterface.addColumn('Conversations', 'title', { type: Sequelize.STRING, allowNull: true }, { transaction });
-      await queryInterface.addColumn('Conversations', 'status', { type: Sequelize.ENUM('active', 'archived', 'ended'), defaultValue: 'active', allowNull: false }, { transaction });
-      await queryInterface.addColumn('Conversations', 'last_activity_at', { type: Sequelize.DATE, defaultValue: Sequelize.fn('NOW'), allowNull: false }, { transaction });
+      // These operations should only run if 'Conversations' table now exists (either renamed or created prior)
+      const conversationsTableNowExists = await tableExists('Conversations');
+      if (conversationsTableNowExists) {
+        console.log("Migration: Modifying 'Conversations' table.");
+        await queryInterface.addColumn('Conversations', 'title', { type: Sequelize.STRING, allowNull: true }, { transaction });
+        await queryInterface.addColumn('Conversations', 'status', { type: Sequelize.ENUM('active', 'archived', 'ended'), defaultValue: 'active', allowNull: false }, { transaction });
+        await queryInterface.addColumn('Conversations', 'last_activity_at', { type: Sequelize.DATE, defaultValue: Sequelize.fn('NOW'), allowNull: false }, { transaction });
 
-      // Check if 'tokenCount' column exists before trying to remove it
-      const conversationTableDescription = await queryInterface.describeTable('Conversations', { transaction });
-      if (conversationTableDescription.tokenCount) {
-        await queryInterface.removeColumn('Conversations', 'tokenCount', { transaction });
+        const conversationTableDescription = await queryInterface.describeTable('Conversations', { transaction });
+        if (conversationTableDescription.tokenCount) {
+          await queryInterface.removeColumn('Conversations', 'tokenCount', { transaction });
+        }
+      } else {
+        console.log("Migration: 'Conversations' table does not exist. Skipping modifications to it.");
       }
 
       // Modify ShortTermMemories table (formerly Messages)
-      // Drop the old foreign key constraint from Messages(chatId) to Chats(id)
-      // The default constraint name might vary. Common patterns: Messages_chatId_fkey, chatId_foreign_idx
-      // This is the trickiest part. If this fails, the migration might need manual DB intervention or more specific constraint name.
-      try {
-        // Attempt to remove constraint by convention (table_column_foreign_key_suffix or similar)
-        // This is a common pattern but not guaranteed.
-        await queryInterface.removeConstraint('ShortTermMemories', 'Messages_chatId_fkey', { transaction });
-      } catch (e) {
-        console.warn("Could not drop constraint 'Messages_chatId_fkey' on ShortTermMemories. It might not exist or have a different name. Continuing...");
-        // If the constraint name is unknown, this step might be skipped, and renaming column + adding new constraint might still work
-        // or fail if the old constraint is still active on the old column name.
+      // These operations should only run if 'ShortTermMemories' table now exists
+      const shortTermMemoriesTableNowExists = await tableExists('ShortTermMemories');
+      if (shortTermMemoriesTableNowExists) {
+        console.log("Migration: Modifying 'ShortTermMemories' table.");
+        // Drop the old foreign key constraint from Messages(chatId) to Chats(id)
+        // This part is tricky as constraint names vary. We'll try to remove it if it exists.
+        // This assumes the original constraint was on the 'Messages' table.
+        // If 'Messages' was renamed to 'ShortTermMemories', the constraint was carried over.
+        if (messagesTableExists) { // Only try to remove old FK if Messages table actually existed and was renamed
+            try {
+                await queryInterface.removeConstraint('ShortTermMemories', 'Messages_chatId_fkey', { transaction });
+            } catch (e) {
+                console.warn("Could not drop constraint 'Messages_chatId_fkey' on ShortTermMemories. It might not exist or have a different name. This is often okay.");
+            }
+        }
+
+        // Rename 'chatId' to 'conversationId' only if 'chatId' column exists
+        const stmDesc = await queryInterface.describeTable('ShortTermMemories', { transaction });
+        if (stmDesc.chatId) {
+            await queryInterface.renameColumn('ShortTermMemories', 'chatId', 'conversationId', { transaction });
+        } else if (!stmDesc.conversationId) {
+            // If neither chatId nor conversationId exists, but table does, this is an unexpected state.
+            // For now, we assume if chatId isn't there, conversationId might be from a different path.
+            console.warn("Migration: 'chatId' column not found on 'ShortTermMemories'. Skipping rename to 'conversationId'.");
+        }
+
+        // Add new foreign key from ShortTermMemories(conversationId) to Conversations(id)
+        // Only if Conversations table exists and ShortTermMemories has conversationId column
+        if (conversationsTableNowExists && (await queryInterface.describeTable('ShortTermMemories', { transaction })).conversationId) {
+            await queryInterface.addConstraint('ShortTermMemories', {
+                fields: ['conversationId'],
+                type: 'foreign key',
+                name: 'FK_ShortTermMemories_Conversation',
+                references: { table: 'Conversations', field: 'id' },
+                onDelete: 'CASCADE',
+                onUpdate: 'CASCADE',
+                transaction
+            });
+        } else {
+            console.warn("Migration: Skipping adding FK from ShortTermMemories to Conversations due to missing table/column.");
+        }
+
+        await queryInterface.addColumn('ShortTermMemories', 'message_order', { type: Sequelize.INTEGER, allowNull: false, defaultValue: 0 }, { transaction });
+
+        // Modify 'sender' ENUM and rename to 'sender_type'
+        // This assumes 'sender' column exists from the old 'Messages' table schema
+        if (stmDesc.sender) {
+            await queryInterface.changeColumn('ShortTermMemories', 'sender', { type: Sequelize.ENUM('user', 'ai', 'system'), allowNull: false }, { transaction });
+            await queryInterface.renameColumn('ShortTermMemories', 'sender', 'sender_type', { transaction });
+        } else if (!stmDesc.sender_type) {
+            // If 'sender' doesn't exist, maybe 'sender_type' already does or it's a fresh schema part.
+            console.warn("Migration: 'sender' column not found on 'ShortTermMemories'. Skipping ENUM change and rename to 'sender_type'.");
+        }
+
+
+        await queryInterface.addColumn('ShortTermMemories', 'metadata', { type: Sequelize.JSON, allowNull: true }, { transaction });
+
+        const currentStmDesc = await queryInterface.describeTable('ShortTermMemories', { transaction });
+        if (currentStmDesc.timestamp) {
+          await queryInterface.removeColumn('ShortTermMemories', 'timestamp', { transaction });
+        }
+      } else {
+        console.log("Migration: 'ShortTermMemories' table does not exist. Skipping modifications to it.");
       }
 
-      await queryInterface.renameColumn('ShortTermMemories', 'chatId', 'conversationId', { transaction });
-
-      // Add new foreign key from ShortTermMemories(conversationId) to Conversations(id)
-      await queryInterface.addConstraint('ShortTermMemories', {
-        fields: ['conversationId'],
-        type: 'foreign key',
-        name: 'FK_ShortTermMemories_Conversation', // Explicitly named constraint
-        references: { table: 'Conversations', field: 'id' },
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE',
-        transaction
-      });
-
-      await queryInterface.addColumn('ShortTermMemories', 'message_order', { type: Sequelize.INTEGER, allowNull: false, defaultValue: 0 }, { transaction });
-
-      // Modify 'sender' ENUM and rename to 'sender_type'
-      // For MySQL:
-      await queryInterface.changeColumn('ShortTermMemories', 'sender', { type: Sequelize.ENUM('user', 'ai', 'system'), allowNull: false }, { transaction });
-      await queryInterface.renameColumn('ShortTermMemories', 'sender', 'sender_type', { transaction });
-      // For PostgreSQL, this would require more complex raw SQL (dropping constraint, altering type, re-adding constraint)
-      // For SQLite, this is not directly possible (new table, copy, drop, rename).
-
-      await queryInterface.addColumn('ShortTermMemories', 'metadata', { type: Sequelize.JSON, allowNull: true }, { transaction });
-
-      const shortTermMemoryTableDescription = await queryInterface.describeTable('ShortTermMemories', { transaction });
-      if (shortTermMemoryTableDescription.timestamp) {
-        await queryInterface.removeColumn('ShortTermMemories', 'timestamp', { transaction }); // Rely on createdAt
-      }
-
-      // Create Reflections table (before LongTermMemories due to FK)
+      // Create Reflections table (unconditional, as it's a new table)
+      console.log("Migration: Creating 'Reflections' table.");
       await queryInterface.createTable('Reflections', {
         id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
         userId: { type: Sequelize.INTEGER, allowNull: false, references: { model: 'Users', key: 'id' }, onDelete: 'CASCADE', onUpdate: 'CASCADE' },
