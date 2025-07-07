@@ -16,6 +16,11 @@ module.exports = {
     };
 
     try {
+      const usersTableExists = await tableExists('Users');
+      if (!usersTableExists) {
+        throw new Error("Migration failed: 'Users' table does not exist. Ensure the initial migration is executed first.");
+      }
+
       const messagesTableExists = await tableExists('Messages');
       const chatsTableExists = await tableExists('Chats');
 
