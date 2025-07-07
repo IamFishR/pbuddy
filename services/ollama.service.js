@@ -81,6 +81,34 @@ If you do not need to use a tool, respond normally.`;
         responseTokens: 0
       };
     }
+  },
+
+  /**
+   * Generates an embedding for a given text using a specified Ollama model.
+   * @param {string} text - The text to embed.
+   * @param {string} model - The Ollama model to use for embeddings (e.g., 'nomic-embed-text', 'mxbai-embed-large', or a general model like 'gemma:2b').
+   * @returns {Promise<Array<number>>} The embedding vector.
+   */
+  generateEmbedding: async (text, model = 'nomic-embed-text') => { // Defaulting to a common embedding model
+    console.log(`Ollama Service: Generating embedding for text: "${text.substring(0, 50)}..." with model ${model}`);
+    try {
+      // Ensure the model is available or pulled in Ollama.
+      // Consider adding a check similar to generateResponse or rely on Ollama to error out.
+      const response = await ollama.embeddings({ // Corrected method name to 'embeddings'
+        model: model,
+        prompt: text,
+      });
+
+      if (!response || !response.embedding) {
+        throw new Error('Invalid response from Ollama embeddings API');
+      }
+
+      // console.log(`Embedding generated for text "${text.substring(0,50)}..." : ${response.embedding.slice(0,3)}... (length ${response.embedding.length})`);
+      return response.embedding; // This should be an array of numbers
+    } catch (error) {
+      console.error(`Error generating embedding with Ollama model ${model}:`, error);
+      throw error; // Re-throw to be handled by the caller
+    }
   }
 };
 
