@@ -1,4 +1,4 @@
-const { Sequelize } = require('sequelize');
+const { Sequelize, DataTypes } = require('sequelize'); // DataTypes needed for models if not passed
 const dbConfig = require('../config/db.config.js');
 
 const sequelize = new Sequelize(
@@ -14,7 +14,11 @@ const sequelize = new Sequelize(
       acquire: dbConfig.pool.acquire,
       idle: dbConfig.pool.idle
     },
-    logging: false // Set to console.log to see SQL queries
+    logging: process.env.NODE_ENV === 'development' ? console.log : false, // Log SQL in dev
+    define: {
+      // underscored: true, // If you want snake_case table names and columns globally
+      timestamps: true // Ensure timestamps are enabled by default for all models
+    }
   }
 );
 
@@ -24,55 +28,70 @@ db.Sequelize = Sequelize;
 db.sequelize = sequelize;
 
 // Load models
-db.User = require('./user.model.js')(sequelize, Sequelize);
-db.Chat = require('./chat.model.js')(sequelize, Sequelize);
-db.Message = require('./message.model.js')(sequelize, Sequelize);
+db.User = require('./user.model.js')(sequelize, DataTypes);
+db.Conversation = require('./conversation.model.js')(sequelize, DataTypes); // Renamed from Chat
+db.ShortTermMemory = require('./shorttermMemory.model.js')(sequelize, DataTypes); // Renamed from Message
+db.LongTermMemory = require('./longtermMemory.model.js')(sequelize, DataTypes);
+db.Reflection = require('./reflection.model.js')(sequelize, DataTypes);
 
 // Define associations
-// User hasMany Chats
-db.User.hasMany(db.Chat, {
-  foreignKey: {
-    name: 'userId',
-    allowNull: false
-  },
-  as: 'chats'
+
+// User associations
+db.User.hasMany(db.Conversation, {
+  foreignKey: { name: 'userId', allowNull: false },
+  as: 'conversations'
 });
-db.Chat.belongsTo(db.User, {
-  foreignKey: {
-    name: 'userId',
-    allowNull: false
-  },
+db.User.hasMany(db.LongTermMemory, {
+  foreignKey: { name: 'userId', allowNull: false },
+  as: 'longTermMemories'
+});
+db.User.hasMany(db.Reflection, {
+  foreignKey: { name: 'userId', allowNull: false },
+  as: 'reflections'
+});
+
+// Conversation associations
+db.Conversation.belongsTo(db.User, {
+  foreignKey: { name: 'userId', allowNull: false },
   as: 'user'
 });
-
-// Chat hasMany Messages
-db.Chat.hasMany(db.Message, {
-  foreignKey: {
-    name: 'chatId',
-    allowNull: false
-  },
-  as: 'messages'
-});
-db.Message.belongsTo(db.Chat, {
-  foreignKey: {
-    name: 'chatId',
-    allowNull: false
-  },
-  as: 'chat'
+db.Conversation.hasMany(db.ShortTermMemory, {
+  foreignKey: { name: 'conversationId', allowNull: false },
+  as: 'messages' // keep 'messages' for compatibility or change to 'shortTermMemories'
 });
 
-// Function to sync database - This will now be handled by migrations
-/*
-db.syncDb = async () => {
-  try {
-    // await sequelize.sync({ force: true }); // Drops and recreates tables - use for development
-    await sequelize.sync(); // Creates tables if they don't exist
-    console.log('Database synced successfully.');
-  } catch (error) {
-    console.error('Failed to sync database:', error);
-    process.exit(1); // Exit if DB sync fails
-  }
-};
-*/
+// ShortTermMemory associations
+db.ShortTermMemory.belongsTo(db.Conversation, {
+  foreignKey: { name: 'conversationId', allowNull: false },
+  as: 'conversation'
+});
+
+// LongTermMemory associations
+db.LongTermMemory.belongsTo(db.User, {
+  foreignKey: { name: 'userId', allowNull: false },
+  as: 'user'
+});
+db.LongTermMemory.belongsTo(db.Reflection, {
+  foreignKey: { name: 'sourceReflectionId', allowNull: true }, // LTM can exist without a reflection
+  as: 'sourceReflection'
+});
+
+// Reflection associations
+db.Reflection.belongsTo(db.User, {
+  foreignKey: { name: 'userId', allowNull: false },
+  as: 'user'
+});
+db.Reflection.hasMany(db.LongTermMemory, { // A reflection can lead to multiple LTM entries
+  foreignKey: { name: 'sourceReflectionId', allowNull: true }, // FK in LongTermMemory table
+  as: 'generatedMemories'
+});
+
+
+// Optional: Call associate method if defined in models (alternative way to define associations)
+// Object.keys(db).forEach(modelName => {
+//   if (db[modelName].associate) {
+//     db[modelName].associate(db);
+//   }
+// });
 
 module.exports = db;

@@ -1,3 +1,4 @@
+// models/user.model.js
 module.exports = (sequelize, DataTypes) => {
   const User = sequelize.define('User', {
     id: {
@@ -6,20 +7,19 @@ module.exports = (sequelize, DataTypes) => {
       autoIncrement: true
     },
     username: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING, // VARCHAR(255) by default
       allowNull: false,
       unique: true
-    },
-    // Timestamps
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW
     }
+  }, {
+    // Let Sequelize manage createdAt and updatedAt
+    timestamps: true
   });
+
+  // Associations will be defined in models/index.js
+  // User.associate = function(models) {
+  //   User.hasMany(models.Conversation, { foreignKey: 'userId', as: 'conversations' });
+  // };
 
   return User;
 };
